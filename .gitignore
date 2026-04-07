@@ -6,3 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Android
+android/app/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+
+# Misc
+ai_response_log.json

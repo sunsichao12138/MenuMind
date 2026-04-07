@@ -1,6 +1,8 @@
 import { getAccessToken } from "../context/AuthContext";
 
-const BASE_URL = "/api";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : "/api";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const token = getAccessToken();

@@ -48,7 +48,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string) => {
     // 1. 通过后端 admin API 创建已确认的用户
     try {
-      const res = await fetch("/api/auth/signup", {
+      const apiBase = import.meta.env.VITE_API_BASE_URL
+        ? `${import.meta.env.VITE_API_BASE_URL}/api`
+        : "/api";
+      const res = await fetch(`${apiBase}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
