@@ -264,11 +264,11 @@ ${candidateSummary}
       });
     };
 
-    // ── 调用 AI（20秒超时）──
+    // ── 调用 AI（40秒超时）──
     let aiSelections: any[] | null = null;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
+      const timeout = setTimeout(() => controller.abort(), 40000);
 
       const response = await fetch(arkEndpoint, {
         method: "POST",
@@ -306,7 +306,7 @@ ${candidateSummary}
         aiSelections = JSON.parse(jsonStr);
       }
     } catch (aiErr: any) {
-      console.warn(`[AI] Stage 2 failed (${aiErr.name === 'AbortError' ? 'timeout 20s' : aiErr.message}), falling back to Stage 1 results`);
+      console.warn(`[AI] Stage 2 failed (${aiErr.name === 'AbortError' ? 'timeout 40s' : aiErr.message}), falling back to Stage 1 results`);
     }
 
     // ── AI 失败时用 Stage 1 排序直接返回 ──
