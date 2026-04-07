@@ -296,7 +296,8 @@ ${candidateSummary}
             { role: "user", content: prompt },
           ],
           temperature: 0.5,
-          max_tokens: 1024,
+          max_tokens: 512,
+          thinking: { type: "disabled" },
         }),
       });
       clearTimeout(timeout);
@@ -453,12 +454,16 @@ ${ingredientList || "暂无食材"}
 
   console.log(`[AI] Full generation mode with model: ${modelId}`);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 40000);
+
   const response = await fetch(arkEndpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
     },
+    signal: controller.signal,
     body: JSON.stringify({
       model: modelId,
       messages: [
@@ -469,9 +474,11 @@ ${ingredientList || "暂无食材"}
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 2048,
+      thinking: { type: "disabled" },
     }),
   });
+  clearTimeout(timeout);
 
   if (!response.ok) {
     const errBody = await response.text();

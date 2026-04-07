@@ -1,6 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
 import { authMiddleware } from "./middleware/auth.js";
 import authRouter from "./routes/auth.js";
@@ -11,8 +13,6 @@ import plansRouter from "./routes/plans.js";
 import historyRouter from "./routes/history.js";
 import profileRouter from "./routes/profile.js";
 import aiRouter from "./routes/ai.js";
-
-dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const app = express();
