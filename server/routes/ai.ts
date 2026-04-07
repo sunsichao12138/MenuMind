@@ -1,0 +1,451 @@
+import { Router, Request, Response } from "express";
+import { supabase } from "../supabase";
+
+const router = Router();
+
+// ── 场景 → 标签映射 ──
+function getSceneTags(mealType: string): string[] {
+  const map: Record<string, string[]> = {
+    "正餐": ["家常菜", "硬菜", "下饭菜"],
+    "早餐": ["早餐", "快手菜", "轻食"],
+    "午餐": ["家常菜", "快手菜", "下饭菜"],
+    "晚餐": ["家常菜", "硬菜", "汤羹"],
+    "下午茶": ["甜品", "小食", "轻食"],
+    "轻食": ["轻食", "沙拉", "低卡"],
+    "快速搞定": ["快手菜", "家常菜"],
+    "元气早餐": ["早餐", "快手菜"],
+    "西式料理": ["西餐", "意面", "牛排"],
+    "家常菜": ["家常菜", "下饭菜"],
+    "清爽解腻": ["凉菜", "轻食", "沙拉"],
+    "日韩风味": ["日料", "韩餐"],
+    "清库存": ["家常菜", "快手菜"],
+  };
+  return map[mealType] || ["家常菜"];
+}
+
+// ── 时间 → 分钟上限 ──
+function getMaxMinutes(prepTime: string): number {
+  if (prepTime.includes("15")) return 15;
+  if (prepTime.includes("30")) return 30;
+  if (prepTime.includes("45")) return 45;
+  if (prepTime.includes("60") || prepTime.includes("1小时")) return 60;
+  return 999;
+}
+
+// ── 从 time 字段解析分钟数 ──
+function parseMinutes(time: string): number {
+  const m = time.match(/(\d+)/);
+  return m ? parseInt(m[1]) : 30;
+}
+
+// POST /api/ai/recommend - AI 智能推荐菜品（两阶段）
+router.post("/recommend", async (req: Request, res: Response) => {
+  try {
+    const apiKey = process.env.ARK_API_KEY;
+    const modelId = process.env.ARK_MODEL_ID || "doubao-1.5-pro-256k-250115";
+
+    if (!apiKey) {
+      res.status(500).json({ error: "ARK_API_KEY not configured in .env.local" });
+      return;
+    }
+
+    const { peopleCount, prepTime, mealType, tastePreference, useInventory } = req.body;
+
+    // ════════════════════════════════════════
+    // 第一阶段：本地规则快速筛候选
+    // ════════════════════════════════════════
+
+    // 1) 获取冰箱食材
+    const { data: ingredients } = await supabase
+      .from("ingredients")
+      .select("name, amount, category, expiry_days")
+      .eq("user_id", req.userId!)
+      .order("expiry_days", { ascending: true });
+
+    // 2) 获取用户偏好
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("restrictions, taste_preferences")
+      .eq("user_id", req.userId!)
+      .single();
+
+    // 3) 从菜谱库筛选候选
+    const { data: allRecipes } = await supabase
+      .from("recipes")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const sceneTags = getSceneTags(mealType || "正餐");
+    const maxMinutes = getMaxMinutes(prepTime || "30分钟内");
+    const restrictions = profile?.restrictions || [];
+    const inventoryNames = (ingredients || []).map((i: any) => i.name);
+
+    let candidates = (allRecipes || [])
+      // 过滤时间
+      .filter((r: any) => parseMinutes(r.time || "30分钟") <= maxMinutes)
+      // 过滤忌口
+      .filter((r: any) => {
+        if (restrictions.length === 0) return true;
+        const recipeName = r.name || "";
+        const recipeDesc = r.description || "";
+        return !restrictions.some((ban: string) =>
+          recipeName.includes(ban) || recipeDesc.includes(ban)
+        );
+      });
+
+    // 提取每道菜的全部所需食材（合并 have + missing），用于和当前库存比对
+    const getRecipeAllIngredients = (r: any): string[] => {
+      const names: string[] = [];
+      for (const ing of (r.ingredients_have || [])) {
+        if (ing.name) names.push(ing.name);
+      }
+      for (const ing of (r.ingredients_missing || [])) {
+        if (ing.name) names.push(ing.name);
+      }
+      // 也从菜名和步骤中提取关键词（简单匹配库存食材名）
+      const text = `${r.name || ""} ${r.description || ""} ${(r.steps || []).join(" ")}`;
+      for (const invName of inventoryNames) {
+        if (text.includes(invName) && !names.includes(invName)) {
+          names.push(invName);
+        }
+      }
+      return names;
+    };
+
+    // 创建临期权重表：越快过期，权重越高
+    const expiryWeights: Record<string, number> = {};
+    for (const ing of (ingredients || [])) {
+      const days = ing.expiry_days || 999;
+      // 3天内过期 → 权重5，7天 → 3，14天 → 2，其他 → 1
+      expiryWeights[ing.name] = days <= 3 ? 5 : days <= 7 ? 3 : days <= 14 ? 2 : 1;
+    }
+
+    // 重新计算分数：标签 + 库存匹配（含临期加权）
+    candidates = candidates.map((r: any) => {
+      const tagScore = (r.tags || []).reduce((score: number, tag: string) =>
+        sceneTags.includes(tag) ? score + 2 : score, 0);
+
+      let inventoryScore = 0;
+      let matchedCount = 0;
+      if (useInventory !== false) {
+        const allNeeded = getRecipeAllIngredients(r);
+        for (const name of allNeeded) {
+          if (inventoryNames.includes(name)) {
+            inventoryScore += (expiryWeights[name] || 1) * 3; // 库存匹配权重 ×3
+            matchedCount++;
+          }
+        }
+      }
+
+      return { ...r, _score: tagScore + inventoryScore, _inventoryMatched: matchedCount };
+    });
+
+    // 按分数排序，取前 15 个
+    candidates.sort((a: any, b: any) => b._score - a._score);
+    candidates = candidates.slice(0, 15);
+
+    console.log(`[AI] Stage 1: Filtered ${candidates.length} candidates from ${allRecipes?.length || 0} total recipes`);
+    console.log(`[AI] Top candidates: ${candidates.slice(0, 5).map((c: any) => `${c.name}(score=${c._score},inv=${c._inventoryMatched})`).join(", ")}`);
+
+    // 如果候选不足 3 个，回退到完整生成模式
+    if (candidates.length < 3) {
+      console.log(`[AI] Not enough candidates (${candidates.length}), falling back to full generation`);
+      return await fullGeneration(req, res, apiKey, modelId, ingredients, profile, {
+        peopleCount, prepTime, mealType, tastePreference, useInventory,
+      });
+    }
+
+    // ════════════════════════════════════════
+    // 第二阶段：让模型排序和包装
+    // ════════════════════════════════════════
+
+    const ingredientList = (ingredients || [])
+      .map((i: any) => `${i.name}(${i.amount}, 剩余${i.expiry_days}天)`)
+      .join("、");
+
+    const savedTastes = profile?.taste_preferences?.join("、") || "无";
+    const restrictionStr = restrictions.join("、") || "无";
+
+    // 构建候选列表（精简格式）
+    const candidateSummary = candidates.map((r: any, idx: number) => {
+      const tags = (r.tags || []).join(",");
+      const haveStr = (r.ingredients_have || []).map((i: any) => i.name).join(",");
+      const missingStr = (r.ingredients_missing || []).map((i: any) => i.name).join(",");
+      return `${idx + 1}. ${r.name} | 标签:${tags} | 时间:${r.time} | 难度:${r.difficulty} | 需要食材:${haveStr} | 额外需要:${missingStr}`;
+    }).join("\n");
+
+    const prompt = `从以下${candidates.length}道候选菜品中，选出最适合用户的3道。
+
+## 用户条件
+- 就餐人数：${peopleCount || "2人"}
+- 烹饪时间：${prepTime || "30分钟内"}
+- 餐食类型：${mealType || "正餐"}
+- 口味偏好：${tastePreference || savedTastes}
+- 忌口：${restrictionStr}
+
+## 当前冰箱食材
+${ingredientList || "暂无食材"}
+
+## 候选菜品
+${candidateSummary}
+
+## 要求
+1. 从候选中选出最适合的3道，优先选择能用到库存食材的菜品
+2. 临期食材优先使用
+3. 返回每道菜的序号、推荐理由、匹配度
+
+## 输出格式（严格JSON，不要markdown标记）
+[
+  {
+    "index": 1,
+    "recommendationReason": "推荐理由（简短一句话）",
+    "matchPercentage": 85,
+    "inventoryMatch": 3,
+    "ingredientsHave": [{"name": "食材名", "amount": "用量"}],
+    "ingredientsMissing": [{"name": "食材名", "amount": "用量"}]
+  }
+]`;
+
+    const arkEndpoint = process.env.ARK_API_ENDPOINT || "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+    console.log(`[AI] Stage 2: Calling model ${modelId} to rank candidates`);
+
+    const response = await fetch(arkEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [
+          {
+            role: "system",
+            content: "你是一个美食推荐助手。从候选菜品中选出最适合的3道，返回JSON数组。只输出JSON，不要任何额外文字。"
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.5,
+        max_tokens: 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error(`[AI] Ark API error (${response.status}):`, errBody);
+      throw new Error(`Ark API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || "";
+
+    console.log(`[AI] Model response received, usage: ${JSON.stringify(data.usage || {})}`);
+
+    // 提取 JSON
+    let jsonStr = text.trim();
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    }
+
+    const aiSelections = JSON.parse(jsonStr);
+
+    // ════════════════════════════════════════
+    // 拼接最终结果
+    // ════════════════════════════════════════
+
+    const savedRecipes = [];
+    for (const sel of aiSelections.slice(0, 3)) {
+      const idx = (sel.index || 1) - 1;
+      const candidate = candidates[idx];
+      if (!candidate) continue;
+
+      const finalRecipe = {
+        id: candidate.id,
+        name: candidate.name,
+        description: candidate.description || "",
+        image: candidate.image || "",
+        tags: candidate.tags || [],
+        time: candidate.time || "",
+        difficulty: candidate.difficulty || "",
+        calories: candidate.calories || "",
+        recommendationReason: sel.recommendationReason || candidate.recommendation_reason || "",
+        matchPercentage: sel.matchPercentage || candidate.match_percentage || 80,
+        inventoryMatch: sel.inventoryMatch || candidate.inventory_match || 0,
+        ingredients: {
+          have: sel.ingredientsHave || candidate.ingredients_have || [],
+          missing: sel.ingredientsMissing || candidate.ingredients_missing || [],
+        },
+        steps: candidate.steps || [],
+      };
+
+      // 更新菜谱库中的推荐字段
+      await supabase
+        .from("recipes")
+        .update({
+          recommendation_reason: finalRecipe.recommendationReason,
+          match_percentage: finalRecipe.matchPercentage,
+          inventory_match: finalRecipe.inventoryMatch,
+          ingredients_have: finalRecipe.ingredients.have,
+          ingredients_missing: finalRecipe.ingredients.missing,
+        })
+        .eq("id", candidate.id);
+
+      savedRecipes.push(finalRecipe);
+    }
+
+    console.log(`[AI] Successfully recommended ${savedRecipes.length} recipes`);
+    res.json(savedRecipes);
+  } catch (err: any) {
+    console.error("POST /api/ai/recommend error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 回退：候选不足时完整生成 ──
+async function fullGeneration(
+  req: Request, res: Response,
+  apiKey: string, modelId: string,
+  ingredients: any[] | null, profile: any,
+  filters: any,
+) {
+  const { peopleCount, prepTime, mealType, tastePreference, useInventory } = filters;
+
+  const ingredientList = (ingredients || [])
+    .map((i: any) => `${i.name}(${i.amount}, 剩余${i.expiry_days}天)`)
+    .join("、");
+
+  const restrictions = profile?.restrictions?.join("、") || "无";
+  const savedTastes = profile?.taste_preferences?.join("、") || "无";
+
+  const prompt = `你是一个专业的中文美食推荐AI助手。请根据以下条件推荐3道菜品。
+
+## 用户条件
+- 就餐人数：${peopleCount || "2人"}
+- 烹饪时间：${prepTime || "30分钟内"}
+- 餐食类型：${mealType || "正餐"}
+- 口味偏好：${tastePreference || savedTastes}
+- 忌口：${restrictions}
+${useInventory !== false ? `- 优先使用库存：是` : "- 优先使用库存：否"}
+
+## 当前冰箱食材
+${ingredientList || "暂无食材"}
+
+## 要求
+1. 推荐3道菜，尽量利用现有食材（如果选择优先使用库存）
+2. 临期食材（剩余天数少的）应优先使用
+3. 每道菜需要包含详细信息
+
+## 输出格式
+请严格按以下JSON格式回复，不要添加任何额外文字或markdown标记：
+[
+  {
+    "name": "菜名",
+    "description": "一句话描述",
+    "tags": ["标签1"],
+    "time": "预计时间",
+    "difficulty": "简单/中等/困难",
+    "calories": "预估热量如 350 kcal",
+    "recommendationReason": "推荐理由",
+    "matchPercentage": 85,
+    "inventoryMatch": 3,
+    "ingredients": {
+      "have": [{"name": "食材名", "amount": "用量"}],
+      "missing": [{"name": "食材名", "amount": "用量"}]
+    },
+    "steps": ["步骤1", "步骤2", "步骤3"]
+  }
+]`;
+
+  const arkEndpoint = process.env.ARK_API_ENDPOINT || "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+  console.log(`[AI] Full generation mode with model: ${modelId}`);
+
+  const response = await fetch(arkEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [
+        {
+          role: "system",
+          content: "你是一个专业的美食推荐助手。请严格按照用户要求的JSON格式输出。"
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 4096,
+    }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Ark API error: ${response.status} - ${errBody}`);
+  }
+
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content || "";
+
+  let jsonStr = text.trim();
+  if (jsonStr.startsWith("```")) {
+    jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+  }
+
+  const recipes = JSON.parse(jsonStr);
+
+  const savedRecipes = [];
+  for (const recipe of recipes) {
+    const id = `ai_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+    const { data: dbData, error } = await supabase
+      .from("recipes")
+      .insert({
+        id,
+        name: recipe.name,
+        description: recipe.description || "",
+        image: "",
+        tags: recipe.tags || [],
+        time: recipe.time || "",
+        difficulty: recipe.difficulty || "",
+        calories: recipe.calories || "",
+        recommendation_reason: recipe.recommendationReason || "",
+        match_percentage: recipe.matchPercentage || null,
+        inventory_match: recipe.inventoryMatch || null,
+        ingredients_have: recipe.ingredients?.have || [],
+        ingredients_missing: recipe.ingredients?.missing || [],
+        steps: recipe.steps || [],
+      })
+      .select()
+      .single();
+
+    if (!error && dbData) {
+      savedRecipes.push({
+        id: dbData.id,
+        name: dbData.name,
+        description: dbData.description,
+        image: dbData.image,
+        tags: dbData.tags || [],
+        time: dbData.time,
+        difficulty: dbData.difficulty,
+        calories: dbData.calories,
+        recommendationReason: dbData.recommendation_reason,
+        matchPercentage: dbData.match_percentage,
+        inventoryMatch: dbData.inventory_match,
+        ingredients: {
+          have: dbData.ingredients_have || [],
+          missing: dbData.ingredients_missing || [],
+        },
+        steps: dbData.steps || [],
+      });
+    } else {
+      savedRecipes.push({ id, ...recipe });
+    }
+  }
+
+  console.log(`[AI] Full generation: ${savedRecipes.length} recipes created`);
+  res.json(savedRecipes);
+}
+
+export default router;
