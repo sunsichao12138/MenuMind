@@ -49,6 +49,17 @@ function getMaxMinutes(prepTime: string): number {
   return 999;
 }
 
+// ── 口味偏好 → 标签映射 ──
+function getTasteTags(taste: string): { boost: string[]; penalize: string[] } {
+  const map: Record<string, { boost: string[]; penalize: string[] }> = {
+    "香辣": { boost: ["川菜", "湘菜", "麻辣", "火锅", "下饭菜"], penalize: ["清淡", "蒸菜", "轻食"] },
+    "清淡": { boost: ["清淡", "蒸菜", "轻食", "低卡"], penalize: ["麻辣", "火锅"] },
+    "咸香": { boost: ["家常菜", "下饭菜", "硬菜"], penalize: [] },
+    "甜口": { boost: ["甜品", "小食", "蛋糕", "糖水"], penalize: ["麻辣"] },
+  };
+  return map[taste] || { boost: [], penalize: [] };
+}
+
 // ── 从 time 字段解析分钟数 ──
 function parseMinutes(time: string): number {
   const m = time.match(/(\d+)/);
@@ -138,10 +149,20 @@ router.post("/recommend", async (req: Request, res: Response) => {
       expiryWeights[ing.name] = days <= 3 ? 5 : days <= 7 ? 3 : days <= 14 ? 2 : 1;
     }
 
-    // 重新计算分数：标签 + 库存匹配（含临期加权）
+    // 口味偏好标签
+    const tasteTags = getTasteTags(tastePreference || "");
+
+    // 重新计算分数：标签 + 库存匹配（含临期加权）+ 口味偏好
     candidates = candidates.map((r: any) => {
       const tagScore = (r.tags || []).reduce((score: number, tag: string) =>
         sceneTags.includes(tag) ? score + 2 : score, 0);
+
+      // 口味偏好加分/减分
+      let tasteScore = 0;
+      for (const tag of (r.tags || [])) {
+        if (tasteTags.boost.includes(tag)) tasteScore += 3;
+        if (tasteTags.penalize.includes(tag)) tasteScore -= 4;
+      }
 
       let inventoryScore = 0;
       let matchedCount = 0;
@@ -157,7 +178,7 @@ router.post("/recommend", async (req: Request, res: Response) => {
         }
       }
 
-      return { ...r, _tagScore: tagScore, _score: tagScore + inventoryScore, _inventoryMatched: matchedCount };
+      return { ...r, _tagScore: tagScore, _score: tagScore + inventoryScore + tasteScore, _inventoryMatched: matchedCount, _tasteScore: tasteScore };
     });
 
     // 先硬筛：只保留至少有1个标签匹配的菜谱（确保"饮品"不会出现菜）
@@ -174,7 +195,7 @@ router.post("/recommend", async (req: Request, res: Response) => {
     candidates = candidates.slice(0, 15);
 
     console.log(`[AI] Stage 1: Filtered ${candidates.length} candidates from ${allRecipes?.length || 0} total recipes`);
-    console.log(`[AI] Top candidates: ${candidates.slice(0, 5).map((c: any) => `${c.name}(score=${c._score},inv=${c._inventoryMatched})`).join(", ")}`);
+    console.log(`[AI] Top candidates: ${candidates.slice(0, 5).map((c: any) => `${c.name}(score=${c._score},inv=${c._inventoryMatched},taste=${c._tasteScore})`).join(", ")}`);
 
     // 如果候选不足 3 个，或者最佳候选的标签完全不匹配（库里没有相关菜谱），回退到完整生成模式
     const bestTagScore = candidates.length > 0
