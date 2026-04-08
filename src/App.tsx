@@ -6,6 +6,7 @@ import Fridge from "./pages/Fridge";
 import Filters from "./pages/Filters";
 import DishDetail from "./pages/DishDetail";
 import Plan from "./pages/Plan";
+import AllDishes from "./pages/AllDishes";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import SetupProfile from "./pages/SetupProfile";
@@ -131,6 +132,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <AuthenticatedProviders>
             <DishDetail />
+          </AuthenticatedProviders>
+        </ProtectedRoute>
+      } />
+      <Route path="/all-dishes" element={
+        <ProtectedRoute>
+          <AuthenticatedProviders>
+            <AllDishes />
           </AuthenticatedProviders>
         </ProtectedRoute>
       } />

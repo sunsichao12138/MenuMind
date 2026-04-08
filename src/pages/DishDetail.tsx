@@ -229,7 +229,7 @@ export default function DishDetail() {
             )}
           >
             {isPlanned ? <Check size={18} /> : <Plus size={18} />}
-            <span>{isPlanned ? "已在菜单" : "加入菜单"}</span>
+            <span>{isPlanned ? "已在计划" : "加入计划"}</span>
           </button>
         </section>
       </main>

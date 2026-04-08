@@ -103,7 +103,7 @@ export default function Filters() {
     loadAiRecipes();
   };
 
-  const displayRecipes = recipes.slice(0, 3);
+  const displayRecipes = recipes.slice(0, 10);
 
   return (
     <div className="min-h-screen bg-surface max-w-md mx-auto relative shadow-2xl animate-in slide-in-from-bottom duration-500">
@@ -130,7 +130,7 @@ export default function Filters() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="mt-4 space-y-6 pb-6 border-b border-zinc-100">
+                <div className="mt-4 space-y-6 pb-2">
                   <div className="space-y-4">
                     <label className="font-bold tracking-widest text-zinc-400 uppercase text-xs block">几个人吃</label>
                     <div className="flex gap-2 overflow-x-auto no-scrollbar">
@@ -293,19 +293,13 @@ export default function Filters() {
               className="space-y-6"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold">{isAiSource ? "AI 推荐结果" : "推荐菜品"}</h3>
-                  {isAiSource ? (
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full border border-emerald-100 flex items-center gap-1">
-                      <Sparkles size={10} /> 豆包AI
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-zinc-50 text-zinc-400 text-[10px] font-bold rounded-full border border-zinc-100">
-                      数据库
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs font-bold text-zinc-400">找到 {displayRecipes.length} 个匹配</span>
+                <h3 className="text-xl font-bold">{isAiSource ? "AI 推荐结果" : "推荐菜品"}</h3>
+                <button
+                  onClick={() => navigate("/all-dishes")}
+                  className="text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors flex items-center gap-1"
+                >
+                  查看全部菜品 <ArrowRight size={14} />
+                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
