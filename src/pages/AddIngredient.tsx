@@ -83,7 +83,7 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -92,10 +92,10 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <motion.div 
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            className="relative bg-surface w-full max-w-md rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="relative bg-surface w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
           >
             {/* 固定头部 */}
             <header className="flex items-center justify-between px-8 pt-8 pb-4 flex-shrink-0">
@@ -109,26 +109,26 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
             </header>
 
             {/* 可滚动的表单区域 */}
-            <div className="flex-1 overflow-y-auto px-8 space-y-6 no-scrollbar">
-            <section className="grid grid-cols-2 gap-3">
+            <div className="flex-1 overflow-y-auto px-8 space-y-4 no-scrollbar">
+            <section className="grid grid-cols-2 gap-2">
               <button 
                 onClick={() => handleAiFill("camera")}
-                className="flex items-center justify-center gap-2 bg-white text-zinc-900 rounded-2xl py-3 px-4 active:scale-95 transition-all border border-zinc-100 shadow-sm"
+                className="flex items-center justify-center gap-2 bg-white text-zinc-900 rounded-xl py-2.5 px-4 active:scale-95 transition-all border border-zinc-100 shadow-sm"
               >
                 <Camera size={18} />
                 <span className="text-xs font-bold">拍照识别</span>
               </button>
               <button 
                 onClick={() => handleAiFill("mic")}
-                className="flex items-center justify-center gap-2 bg-white text-zinc-900 rounded-2xl py-3 px-4 active:scale-95 transition-all border border-zinc-100 shadow-sm"
+                className="flex items-center justify-center gap-2 bg-white text-zinc-900 rounded-xl py-2.5 px-4 active:scale-95 transition-all border border-zinc-100 shadow-sm"
               >
                 <Mic size={18} />
                 <span className="text-xs font-bold">语音录入</span>
               </button>
             </section>
 
-            <form className="space-y-4">
-              <div className="space-y-1.5">
+            <form className="space-y-3">
+              <div className="space-y-1">
                 <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">食材名称</label>
                 <div className="flex gap-2">
                   <div className="relative flex-grow">
@@ -137,7 +137,7 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                       placeholder="例如：西红柿" 
-                      className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
+                      className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
                     />
                   </div>
                   <button 
@@ -156,15 +156,15 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">分类</label>
                   <div className="relative">
                     <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" size={16} />
                     <select 
                       value={formData.category}
                       onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium appearance-none"
+                      className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium appearance-none"
                     >
                       {["蔬菜", "蛋奶肉类", "主食干货", "调料", "水果", "其他"].map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
@@ -172,7 +172,7 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                     </select>
                   </div>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">数量</label>
                   <div className="relative">
                     <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" size={16} />
@@ -181,21 +181,21 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                       value={formData.amount}
                       onChange={(e) => setFormData({...formData, amount: e.target.value})}
                       placeholder="数量" 
-                      className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
+                      className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">单位</label>
                   <div className="relative">
                     <Ruler className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" size={16} />
                     <select 
                       value={formData.unit}
                       onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                      className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium appearance-none"
+                      className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium appearance-none"
                     >
                       {["克", "千克", "个", "瓶", "盒", "袋"].map(u => (
                         <option key={u} value={u}>{u}</option>
@@ -203,7 +203,7 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                     </select>
                   </div>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">预期存放天数</label>
                   <div className="relative">
                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" size={16} />
@@ -212,20 +212,20 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                       value={formData.expiryDays}
                       onChange={(e) => setFormData({...formData, expiryDays: e.target.value})}
                       placeholder="天数" 
-                      className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
+                      className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">购买日期</label>
                 <div className="relative">
                   <input 
                     type="date" 
                     value={formData.purchaseDate}
                     onChange={(e) => setFormData({...formData, purchaseDate: e.target.value})}
-                    className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
+                    className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium"
                   />
                 </div>
               </div>
@@ -233,12 +233,12 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
             </div>
 
             {/* 固定底部按钮 */}
-            <div className="flex-shrink-0 px-8 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom,1.5rem))] bg-surface border-t border-zinc-100">
+            <div className="flex-shrink-0 px-8 pt-4 pb-6 bg-surface border-t border-zinc-100">
             <button 
               onClick={handleSubmit}
               disabled={submitting || !formData.name || !formData.amount}
               className={cn(
-                "w-full bg-black text-white py-4 rounded-full font-bold shadow-xl active:scale-95 transition-all",
+                "w-full bg-black text-white py-3.5 rounded-full font-bold shadow-xl active:scale-95 transition-all",
                 (submitting || !formData.name || !formData.amount) && "opacity-50 cursor-not-allowed"
               )}
             >
