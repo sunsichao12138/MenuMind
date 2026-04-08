@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Sparkles, Package, Clock, Utensils, Plus, ChevronDown, ChevronUp, Heart, X } from "lucide-react";
+import { ArrowRight, Sparkles, Package, Clock, Utensils, Plus, ChevronDown, ChevronUp, Heart, X, Check } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { useFavorites } from "../context/FavoritesContext";
+import { usePlan } from "../context/PlanContext";
 import { Recipe } from "../types";
 import { api } from "../api/client";
 
@@ -13,6 +14,7 @@ export default function Filters() {
   const isQuick = searchParams.get("quick") === "true";
   const initialTag = searchParams.get("tag");
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { addToPlan, removeFromPlan, isInPlan } = usePlan();
 
   // 尝试从缓存恢复上次推荐结果
   const cachedResults = (() => {
@@ -336,7 +338,7 @@ export default function Filters() {
                           referrerPolicy="no-referrer"
                         />
                       </div>
-                      <div className="flex-1 min-w-0 pr-8">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="text-lg font-bold truncate">{recipe.name}</h4>
                           <button 
@@ -353,22 +355,33 @@ export default function Filters() {
                           </button>
                         </div>
                         <p className="text-zinc-500 text-xs line-clamp-2 mb-3 leading-relaxed">{recipe.description}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-xs font-bold text-zinc-400">
+                        <div className="flex items-center gap-3 text-xs font-bold text-zinc-400">
+                          <span className="flex items-center gap-1">
+                            <Clock size={14} /> {recipe.time}
+                          </span>
+                          {recipe.inventoryMatch !== undefined && recipe.inventoryMatch !== null && (
                             <span className="flex items-center gap-1">
-                              <Clock size={14} /> {recipe.time}
+                              <Package size={14} /> {recipe.inventoryMatch}种库存
                             </span>
-                            {recipe.inventoryMatch !== undefined && recipe.inventoryMatch !== null && (
-                              <span className="flex items-center gap-1">
-                                <Package size={14} /> {recipe.inventoryMatch}种库存
-                              </span>
-                            )}
-                          </div>
-                          <button className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform">
-                            <Plus size={18} />
-                          </button>
+                          )}
                         </div>
                       </div>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isInPlan(recipe.id)) {
+                            removeFromPlan(recipe.id);
+                          } else {
+                            addToPlan(recipe);
+                          }
+                        }}
+                        className={cn(
+                          "flex-shrink-0 self-center w-10 h-10 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all",
+                          isInPlan(recipe.id) ? "bg-zinc-100 text-zinc-400" : "bg-black text-white"
+                        )}
+                      >
+                        {isInPlan(recipe.id) ? <Check size={18} /> : <Plus size={18} />}
+                      </button>
                     </div>
                   </motion.div>
                 ))}

@@ -209,25 +209,24 @@ export default function Plan() {
         </div>
       </section>
 
-      {/* Floating Action Button */}
-      <AnimatePresence>
-        {selectedIds.length > 0 && (
-          <motion.div 
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-40"
+      {/* 固定底部按钮 - 始终显示 */}
+      {plannedRecipes.length > 0 && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-40">
+          <button 
+            onClick={handleCookingComplete}
+            disabled={selectedIds.length === 0}
+            className={cn(
+              "w-full py-5 rounded-full font-bold text-lg shadow-2xl flex items-center justify-center gap-3 transition-all",
+              selectedIds.length > 0
+                ? "bg-black text-white active:scale-95"
+                : "bg-zinc-200 text-zinc-400 cursor-not-allowed"
+            )}
           >
-            <button 
-              onClick={handleCookingComplete}
-              className="w-full bg-black text-white py-5 rounded-full font-bold text-lg shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all"
-            >
-              <Utensils size={20} />
-              <span>一键烹饪完成 ({selectedIds.length})</span>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <Utensils size={20} />
+            <span>开始烹饪{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}</span>
+          </button>
+        </div>
+      )}
 
       {/* Completion Modal */}
       <AnimatePresence>

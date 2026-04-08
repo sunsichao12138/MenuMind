@@ -1,5 +1,5 @@
-import React from "react";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import Fridge from "./pages/Fridge";
@@ -46,6 +46,40 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
       </FavoritesProvider>
     </HistoryProvider>
   );
+}
+
+// Android 返回键处理
+function BackButtonHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const setup = async () => {
+      try {
+        const { App } = await import("@capacitor/app");
+        const handle = await App.addListener("backButton", ({ canGoBack }) => {
+          // 如果在首页，最小化应用而不是退出
+          if (location.pathname === "/" || location.pathname === "") {
+            App.minimizeApp();
+          } else if (canGoBack || window.history.length > 1) {
+            navigate(-1);
+          } else {
+            App.minimizeApp();
+          }
+        });
+        cleanup = () => handle.remove();
+      } catch {
+        // 非 Capacitor 环境忽略
+      }
+    };
+
+    setup();
+    return () => cleanup?.();
+  }, [navigate, location.pathname]);
+
+  return null;
 }
 
 function AppRoutes() {
@@ -108,6 +142,7 @@ export default function App() {
   return (
     <AuthProvider>
       <HashRouter>
+        <BackButtonHandler />
         <AppRoutes />
       </HashRouter>
     </AuthProvider>
