@@ -36,7 +36,18 @@ export default function AllDishes() {
 
   const filteredRecipes = recipes.filter(r => {
     const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === "全部" || (r.tags && r.tags.includes(activeCategory));
+    
+    let matchesCategory = false;
+    if (activeCategory === "全部") {
+      matchesCategory = true;
+    } else if (activeCategory === "甜品饮料") {
+      matchesCategory = !!(r.tags && (r.tags.includes("甜品") || r.tags.includes("饮品") || r.tags.includes("饮料") || r.tags.includes("蛋糕") || r.tags.includes("下午茶")));
+    } else if (activeCategory === "减脂餐") {
+      matchesCategory = !!(r.tags && r.tags.includes("减脂"));
+    } else {
+      matchesCategory = !!(r.tags && r.tags.includes(activeCategory));
+    }
+
     return matchesSearch && matchesCategory;
   });
 
@@ -151,7 +162,7 @@ export default function AllDishes() {
         </div>
         
         <div className="flex overflow-x-auto no-scrollbar gap-2 -mx-6 px-6">
-          {["全部", "家常菜", "下饭菜", "快手菜", "清淡", "香辣", "减脂", "高蛋白", "低卡", "轻食", "硬菜", "主食", "汤羹", "甜品", "小食", "西餐", "川菜", "湘菜", "蒸菜", "日料"].map((cat) => (
+          {["全部", "家常菜", "甜品饮料", "减脂餐", "汤羹", "下饭菜", "快手菜", "高蛋白", "硬菜", "主食", "西餐", "日料"].map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
