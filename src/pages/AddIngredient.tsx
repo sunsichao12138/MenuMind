@@ -338,7 +338,7 @@ export default function AddIngredient({ isOpen, onClose, onAdded }: AddIngredien
                       onChange={(e) => setFormData({...formData, unit: e.target.value})}
                       className="w-full bg-white border border-zinc-100 rounded-xl py-2.5 pl-11 pr-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-black transition-all text-sm font-medium appearance-none"
                     >
-                      {["克", "千克", "个", "瓶", "盒", "袋"].map(u => (
+                      {["克", "千克", "个", "ml", "L"].map(u => (
                         <option key={u} value={u}>{u}</option>
                       ))}
                     </select>
